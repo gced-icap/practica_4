@@ -77,6 +77,11 @@ if [ ! -d "/share" ]; then
 fi
     
 if [ "$HOSTNAME" = "master" ]; then
+    cp /vagrant/setupSSH.sh /home/vagrant
+    dos2unix ./setupSSH.sh
+    chown vagrant:vagrant ./setupSSH.sh
+    chmod +x ./setupSSH.sh
+
     chmod 1777 /share
 
     if ! grep -Fq /share /etc/exports ; then
