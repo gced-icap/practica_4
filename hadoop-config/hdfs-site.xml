@@ -9,10 +9,14 @@
   </property>
   <property>
     <name>dfs.namenode.name.dir</name>
-    <value>file:///data/disk0/XXX/namenode,file:///data/disk1/XXX/namenode</value>
+    <value>file:///data/disk0/hdfs/namenode,file:///data/disk1/hdfs/namenode</value>
   </property>
   <property>
     <name>dfs.datanode.data.dir</name>
-    <value>file:///data/disk0/XXX/datanode,file:///data/disk1/XXX/datanode</value>
+    <value>file:///data/disk0/hdfs/datanode,file:///data/disk1/hdfs/datanode</value>
+  </property>
+  <property>
+    <name>dfs.namenode.heartbeat.recheck-interval</name>
+    <value>25000</value>
   </property>
 </configuration>
