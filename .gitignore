@@ -1,3 +1,4 @@
 **/.DS_Store
 .vagrant/
+disks/
 provisioning/id_rsa*
