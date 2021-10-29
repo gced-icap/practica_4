@@ -8,8 +8,9 @@ MASTERIP=10
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/focal64"
-  config.vm.box_version = "20210917.0.0"
+  config.vm.box_version = "20211021.0.0"
   config.vm.box_check_update = false
+  config.vbguest.auto_update = false
 
   # Master node
   config.vm.define "master", primary: true do |master|
@@ -20,6 +21,7 @@ Vagrant.configure("2") do |config|
 	prov.name = "ICAP-P4-Master"
         prov.cpus = 1
         prov.memory = 1024
+	prov.gui = false
 	prov.linked_clone = true
 
         for i in 0..1 do
@@ -27,7 +29,7 @@ Vagrant.configure("2") do |config|
             unless File.exist?(filename)
                 prov.customize ["createmedium", "disk", "--filename", filename, "--format", "vdi", "--size", 5 * 1024]
             end
-	    prov.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", i + 3, "--device", 0, "--type", "hdd", "--medium", filename]
+	    prov.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", i + 2, "--device", 0, "--type", "hdd", "--medium", filename]
         end
     end
   end
@@ -42,6 +44,7 @@ Vagrant.configure("2") do |config|
 	    prov.name = "ICAP-P4-Worker#{i}"
             prov.cpus = 1
             prov.memory = WORKER_MEM
+	    prov.gui = false
 	    prov.linked_clone = true
 
             for j in 0..1 do
@@ -49,7 +52,7 @@ Vagrant.configure("2") do |config|
                 unless File.exist?(filename)
                     prov.customize ["createmedium", "disk", "--filename", filename, "--format", "vdi", "--size", 5 * 1024]
                 end
-                prov.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", j + 3, "--device", 0, "--type", "hdd", "--medium", filename]
+                prov.customize ["storageattach", :id, "--storagectl", "SCSI", "--port", j + 2, "--device", 0, "--type", "hdd", "--medium", filename]
             end
         end
     end
