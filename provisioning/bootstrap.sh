@@ -57,8 +57,9 @@ systemctl start ntp
 
 # Populate /etc/hosts
 sed -i "/$HOSTNAME/d" /etc/hosts
+sed -i "/master/d" /etc/hosts
 
-if ! grep -Fq $BASEIP.$MASTERIP /etc/hosts ; then
+if ! grep -Fq master /etc/hosts ; then
     echo -e "$BASEIP.$MASTERIP \t master" >> /etc/hosts
 fi
 
@@ -66,9 +67,8 @@ ini=$(($MASTERIP+1))
 fin=$(($MASTERIP+$NUM_WORKERS))
 num=1
 for (( i=$ini; i<=$fin; i++ )); do
-    if ! grep -Fq $BASEIP.$i /etc/hosts ; then
-        echo -e "$BASEIP.$i \t worker$num" >> /etc/hosts
-    fi
+    sed -i "/worker$num/d" /etc/hosts
+    echo -e "$BASEIP.$i \t worker$num" >> /etc/hosts
     num=$((num+1))
 done
 
@@ -105,17 +105,15 @@ if [ "$HOSTNAME" = "master" ]; then
     # NFS export
     chmod 1777 /share
 
-    if ! grep -Fq /share /etc/exports ; then
-        echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
-    fi
+    sed -i "/share/d" /etc/exports
+    echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
 
     exportfs -a
 else
     umount /share >& /dev/null && sleep 1
 
-    if ! grep -Fq /share /etc/fstab ; then
-        echo -e "master:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
-    fi
+    sed -i "/share/d" /etc/fstab
+    echo -e "master:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
 
     sleep 1 && mount /share
 fi
