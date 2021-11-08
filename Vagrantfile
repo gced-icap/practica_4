@@ -3,7 +3,7 @@
 
 NUM_WORKERS = 2
 WORKER_MEM = 1024
-BASEIP="192.168.100"
+BASEIP="192.168.56"
 MASTERIP=10
 
 Vagrant.configure("2") do |config|
