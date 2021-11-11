@@ -58,10 +58,7 @@ systemctl start ntp
 # Populate /etc/hosts
 sed -i "/$HOSTNAME/d" /etc/hosts
 sed -i "/master/d" /etc/hosts
-
-if ! grep -Fq master /etc/hosts ; then
-    echo -e "$BASEIP.$MASTERIP \t master" >> /etc/hosts
-fi
+echo -e "$BASEIP.$MASTERIP \t master" >> /etc/hosts
 
 ini=$(($MASTERIP+1))
 fin=$(($MASTERIP+$NUM_WORKERS))
@@ -108,7 +105,7 @@ if [ "$HOSTNAME" = "master" ]; then
     sed -i "/share/d" /etc/exports
     echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
 
-    exportfs -a
+    exportfs -ra
 else
     umount /share >& /dev/null && sleep 1
 
