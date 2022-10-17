@@ -1,23 +1,27 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# require a Vagrant recent version
+Vagrant.require_version ">= 2.2.0"
+
 NUM_WORKERS = 2
 WORKER_MEM = 1024
-BASEIP="192.168.56"
+BASEIP="10.10.0"
 MASTERIP=10
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/focal64"
-  config.vm.box_version = "20211021.0.0"
+  config.vm.box_version = "20221012.0.0"
   config.vm.box_check_update = false
   config.vbguest.auto_update = false
 
   # Master node
   config.vm.define "master", primary: true do |master|
     master.vm.hostname = "master"
-    master.vm.network :private_network, ip: "#{BASEIP}.#{MASTERIP}"
+    master.vm.network "private_network", ip: "#{BASEIP}.#{MASTERIP}"
+    master.vm.network "forwarded_port", guest: 9870, host: 8080, host_ip: "127.0.0.1"
 
-    master.vm.provider :virtualbox do |prov|
+    master.vm.provider "virtualbox" do |prov|
 	prov.name = "ICAP-P4-Master"
         prov.cpus = 1
         prov.memory = 1024
@@ -38,9 +42,9 @@ Vagrant.configure("2") do |config|
   (1..NUM_WORKERS).each do |i|
     config.vm.define "worker#{i}" do |worker|
         worker.vm.hostname = "worker#{i}"
-        worker.vm.network :private_network, ip: "#{BASEIP}.#{i + MASTERIP}"
+        worker.vm.network "private_network", ip: "#{BASEIP}.#{i + MASTERIP}"
         
-        worker.vm.provider :virtualbox do |prov|
+        worker.vm.provider "virtualbox" do |prov|
 	    prov.name = "ICAP-P4-Worker#{i}"
             prov.cpus = 1
             prov.memory = WORKER_MEM
