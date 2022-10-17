@@ -48,9 +48,9 @@ if ! grep -Fq /dev/sdd /etc/fstab ; then
     echo -e "/dev/sdd        /data/disk1     ext4    defaults,relatime       0       0" >> /etc/fstab
 fi
 
-apt-get update
 # Install basic software
-apt-get install -y ntp vim nano sshpass unzip python-apt dnsutils dos2unix whois nfs-kernel-server nfs-common openjdk-8-jdk
+apt-get update
+apt-get install -y ntp vim nano sshpass unzip python-apt dnsutils dos2unix whois nfs-common openjdk-8-jdk
 timedatectl set-timezone Europe/Madrid
 systemctl enable ntp
 systemctl start ntp
@@ -88,6 +88,9 @@ if [ ! -d "/share" ]; then
 fi
     
 if [ "$HOSTNAME" = "master" ]; then
+    # Install NFS server
+    apt-get install -y nfs-kernel-server
+
     # Create ssh keys
     echo -e 'y\n' | sudo -u vagrant ssh-keygen -t rsa -f $SSH_DIR/id_rsa -q -N ''
 
@@ -99,23 +102,20 @@ if [ "$HOSTNAME" = "master" ]; then
     chown vagrant:vagrant $SSH_DIR/id_rsa*
     cp $SSH_DIR/id_rsa.pub /vagrant/provisioning
 
-    # NFS export
+    # Configure NFS export
     chmod 1777 /share
-
     sed -i "/share/d" /etc/exports
     echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
-
     exportfs -ra
 else
     umount /share >& /dev/null && sleep 1
-
     sed -i "/share/d" /etc/fstab
     echo -e "master:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
-
+    echo "Mounting NFS export"
     sleep 1 && mount /share
 fi
 
-# Finish SSH keys setup
+# Check SSH keys setup
 if [ ! -f $SSH_PUBLIC_KEY ]; then
 	echo "SSH public key does not exist"
 	exit -1
