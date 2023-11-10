@@ -56,15 +56,15 @@ fi
 
 #Fixes for Java 11
 if [ ! -d "/etc/apt/keyrings" ]; then
-	mkdir -p /etc/apt/keyrings
+    mkdir -p /etc/apt/keyrings
 fi
 
 if [ ! -f /etc/apt/keyrings/adoptium.asc ]; then
-	wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc
+    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc
 fi
 
 if [ ! -f /etc/apt/sources.list.d/adoptium.list ]; then
-	echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
 fi
 
 # Install basic software
