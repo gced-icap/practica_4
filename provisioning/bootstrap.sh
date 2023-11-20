@@ -108,6 +108,7 @@ if grep -Fq /share /etc/fstab ; then
 fi
 
 if [[ "$HOSTNAME" == *"master" ]]; then
+    echo "Installing and configuring NFS"
     # Install NFS server
     apt-get install -y nfs-kernel-server
 
