@@ -103,6 +103,10 @@ if [ ! -d "/share" ]; then
     mkdir /share >& /dev/null
 fi
 
+if grep -Fq /share /etc/fstab ; then
+    sed -i "/share/d" /etc/fstab
+fi
+
 if [[ "$HOSTNAME" == *"master" ]]; then
     # Install NFS server
     apt-get install -y nfs-kernel-server
@@ -127,8 +131,9 @@ if [[ "$HOSTNAME" == *"master" ]]; then
     exportfs -ra
 else
     umount /share >& /dev/null && sleep 1
-    sed -i "/share/d" /etc/fstab
-    echo -e "$MASTER_HOSTNAME:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
+    if ! grep -Fq /share /etc/fstab ; then
+        echo -e "$MASTER_HOSTNAME:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
+    fi
     echo "Mounting NFS export"
     sleep 2 && mount -t nfs4 /share
 fi
