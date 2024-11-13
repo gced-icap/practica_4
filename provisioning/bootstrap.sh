@@ -18,8 +18,10 @@ if [ ! -d "/data/disk0" ]; then
     mount /dev/sdb /data/disk0
     chmod 1777 /data/disk0
 else
-    mount /dev/sdb /data/disk0 >& /dev/null
-    chmod 1777 /data/disk0
+    if ! grep -Fq /dev/sdb /proc/mounts ; then
+        mount /dev/sdb /data/disk0 >& /dev/null
+        chmod 1777 /data/disk0
+    fi
 fi
 
 if [ ! -d "/data/disk1" ]; then
@@ -28,8 +30,10 @@ if [ ! -d "/data/disk1" ]; then
     mount /dev/sdc /data/disk1
     chmod 1777 /data/disk1
 else
-    mount /dev/sdc /data/disk1 >& /dev/null
-    chmod 1777 /data/disk1
+    if ! grep -Fq /dev/sdc /proc/mounts ; then
+        mount /dev/sdc /data/disk1 >& /dev/null
+        chmod 1777 /data/disk1
+    fi
 fi
 
 if [ ! -d "/data/disk0/hdfs" ]; then
@@ -70,7 +74,10 @@ fi
 # Install basic software
 apt-get update
 apt-get install -y ntp vim nano sshpass unzip python-apt-common fdisk dnsutils dos2unix whois nfs-common temurin-11-jdk
+
 timedatectl set-timezone Europe/Madrid
+passwd -d root
+echo 'root:vagrant' | chpasswd -m
 
 # Populate /etc/hosts
 sed -i "/$HOSTNAME/d" /etc/hosts
@@ -90,7 +97,14 @@ done
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
 systemctl restart sshd
 
-#profile
+# .profile
+sed -i "/sbin/d" /home/vagrant/.profile
+echo 'PATH=/sbin:$PATH' >> /home/vagrant/.profile
+
+if ! grep -Fq WORDCOUNT /home/vagrant/.profile ; then
+	echo "export WORDCOUNT=/share/hadoop-3.4.0/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.0.jar" >> /home/vagrant/.profile
+fi
+
 if ! grep -Fq JAVA_HOME /home/vagrant/.profile ; then
     echo "export JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64" >> /home/vagrant/.profile
 fi
@@ -122,6 +136,13 @@ if [[ "$HOSTNAME" == *"master" ]]; then
 	fi
     fi
 
+    if [ ! -f /etc/ssh/ssh_config.d/90-key-checking.conf ]; then
+        cat > /etc/ssh/ssh_config.d/90-key-checking.conf << EOF
+Host *
+    StrictHostKeyChecking no
+EOF
+    fi
+
     chown vagrant:vagrant $SSH_DIR/id_rsa*
     cp $SSH_DIR/id_rsa.pub /vagrant/provisioning
 
@@ -130,13 +151,16 @@ if [[ "$HOSTNAME" == *"master" ]]; then
     sed -i "/share/d" /etc/exports
     echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
     exportfs -ra
+    
+    # Set resourcemanager for YARN
+    sed -i "/-master/c\    <value>$MASTER_HOSTNAME</value>" /vagrant/hadoop-config/yarn-site.xml
 else
     umount /share >& /dev/null && sleep 1
     if ! grep -Fq /share /etc/fstab ; then
         echo -e "$MASTER_HOSTNAME:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
     fi
     echo "Mounting NFS export"
-    sleep 2 && mount -t nfs4 /share
+    sleep 2 && mount $MASTER_HOSTNAME:/share /share
 fi
 
 # Check SSH keys setup
@@ -149,4 +173,3 @@ sed -i "/master/d" .ssh/authorized_keys >& /dev/null
 cat $SSH_PUBLIC_KEY >> $SSH_DIR/authorized_keys
 chown vagrant:vagrant $SSH_DIR/authorized_keys
 chmod 0600 $SSH_DIR/authorized_keys >& /dev/null
-
