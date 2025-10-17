@@ -1,15 +1,16 @@
 #!/bin/bash
+set -e
+export DEBIAN_FRONTEND=noninteractive
 
-if [ "$#" -ne 5 ]; then
-    echo "Sintaxis: $0 NUM_WORKERS BASEIP MASTERIP MASTER_HOSTNAME WORKER_HOSTNAME"
+if [ "$#" -ne 4 ]; then
+    echo "Sintaxis: $0 MASTER_IP MASTER_HOSTNAME WORKER_HOSTNAME NUM_WORKERS"
     exit -1
 fi
 
-NUM_WORKERS=$1
-BASEIP=$2
-MASTERIP=$3
-MASTER_HOSTNAME=$4
-WORKER_HOSTNAME=$5
+MASTER_IP=$1
+MASTER_HOSTNAME=$2
+WORKER_HOSTNAME=$3
+NUM_WORKERS=$4
 
 # Format and mount disks to be used with Hadoop HDFS
 if [ ! -d "/data/disk0" ]; then
@@ -58,59 +59,69 @@ if ! grep -Fq /dev/sdc /etc/fstab ; then
     echo -e "/dev/sdc        /data/disk1     ext4    defaults,relatime       0       0" >> /etc/fstab
 fi
 
-#Fixes for Java 11
-if [ ! -d "/etc/apt/keyrings" ]; then
-    mkdir -p /etc/apt/keyrings
+# Install software
+apt-get update -y -qq
+SOFTWARE="nano sshpass unzip python-apt-common fdisk dnsutils dos2unix whois nfs-common openjdk-11-jdk"
+echo "==> Installing software packages..."
+if ! apt-get install -y -qq $SOFTWARE > /tmp/apt.log 2>&1; then
+    echo "Error when installing software, log:"
+    cat /tmp/apt.log
+    exit 1
 fi
-
-if [ ! -f /etc/apt/keyrings/adoptium.asc ]; then
-    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc
-fi
-
-if [ ! -f /etc/apt/sources.list.d/adoptium.list ]; then
-    echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
-fi
-
-# Install basic software
-apt-get update
-apt-get install -y ntp vim nano sshpass unzip python-apt-common fdisk dnsutils dos2unix whois nfs-common temurin-11-jdk
+echo "==> done"
 
 timedatectl set-timezone Europe/Madrid
 passwd -d root
 echo 'root:vagrant' | chpasswd -m
+passwd -d vagrant
+echo 'vagrant:vagrant' | chpasswd -m
 
 # Populate /etc/hosts
 sed -i "/$HOSTNAME/d" /etc/hosts
 sed -i "/master/d" /etc/hosts
-echo -e "$BASEIP.$MASTERIP \t $MASTER_HOSTNAME" >> /etc/hosts
+echo -e "$MASTER_IP \t $MASTER_HOSTNAME" >> /etc/hosts
 
-ini=$(($MASTERIP+1))
-fin=$(($MASTERIP+$NUM_WORKERS))
-num=1
-for (( i=$ini; i<=$fin; i++ )); do
-    sed -i "/worker$num/d" /etc/hosts
-    echo -e "$BASEIP.$i \t $WORKER_HOSTNAME$num" >> /etc/hosts
-    num=$((num+1))
+IP_PREFIX=$(echo "$MASTER_IP" | cut -d. -f1-3)
+IP_LAST=$(echo "$MASTER_IP" | cut -d. -f4)
+for (( i=1; i<=$NUM_WORKERS; i++ )); do
+	worker_ip="$IP_PREFIX.$((IP_LAST + i))"
+	echo -e "${worker_ip} \t ${WORKER_HOSTNAME}${i}" >> /etc/hosts
 done
 
 # SSH config
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-systemctl restart sshd
+sed -i 's/#PasswordAuthentication/PasswordAuthentication/' /etc/ssh/sshd_config
+sed -i 's/KbdInteractiveAuthentication no/KbdInteractiveAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/#KbdInteractiveAuthentication/KbdInteractiveAuthentication/' /etc/ssh/sshd_config
+systemctl restart ssh
 
 # .profile
 sed -i "/sbin/d" /home/vagrant/.profile
 echo 'PATH=/sbin:$PATH' >> /home/vagrant/.profile
 
 if ! grep -Fq WORDCOUNT /home/vagrant/.profile ; then
-	echo "export WORDCOUNT=/share/hadoop-3.4.0/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.0.jar" >> /home/vagrant/.profile
+	echo "export WORDCOUNT=/share/hadoop-3.4.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.2.jar" >> /home/vagrant/.profile
 fi
 
 if ! grep -Fq JAVA_HOME /home/vagrant/.profile ; then
-    echo "export JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64" >> /home/vagrant/.profile
+    echo "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> /home/vagrant/.profile
+fi
+
+if [ "$(hostname)" = "$MASTER_HOSTNAME" ]; then
+    echo "Downloading fileGen.sh script..."
+    cd /home/vagrant
+    wget https://gac.udc.es/~rober/icap/fileGen.sh
+    if [ $? -ne 0 ]; then
+        echo "Error: download failed!"
+        exit -1
+    fi
+    chmod +x fileGen.sh
+    chown vagrant:vagrant fileGen.sh
+    echo 'echo "$number characters" >> $path/$filename' >> fileGen.sh
 fi
 
 # NFS and SSH keys setup
-SSH_PUBLIC_KEY=/vagrant/provisioning/id_rsa.pub
+SSH_PUBLIC_KEY=/share/id_rsa.pub
 SSH_DIR=/home/vagrant/.ssh
 
 if [ ! -d "/share" ]; then
@@ -121,10 +132,15 @@ if grep -Fq /share /etc/fstab ; then
     sed -i "/share/d" /etc/fstab
 fi
 
-if [[ "$HOSTNAME" == *"master" ]]; then
-    echo "Installing and configuring NFS"
+if [ "$(hostname)" = "$MASTER_HOSTNAME" ]; then
     # Install NFS server
-    apt-get install -y nfs-kernel-server
+    echo "==> Installing and configuring NFS server..."
+    if ! apt-get install -y -qq nfs-kernel-server >/tmp/apt.log 2>&1; then
+    	echo "Error when installing software, log:"
+    	cat /tmp/apt.log
+    	exit 1
+    fi
+    echo "==> done"
 
     if [ ! -f $SSH_DIR/id_rsa.pub ]; then
 	# Create ssh keys
@@ -144,18 +160,15 @@ EOF
     fi
 
     chown vagrant:vagrant $SSH_DIR/id_rsa*
-    cp $SSH_DIR/id_rsa.pub /vagrant/provisioning
+    cp $SSH_DIR/id_rsa.pub $SSH_PUBLIC_KEY
 
     # Configure NFS export
     chmod 1777 /share
     sed -i "/share/d" /etc/exports
-    echo -e "/share        $BASEIP.0/24(rw,sync,no_subtree_check)" >> /etc/exports
+    echo -e "/share        $IP_PREFIX.0/24(rw,sync,no_subtree_check)" >> /etc/exports
     exportfs -ra
-    
-    # Set resourcemanager for YARN
-    sed -i "/-master/c\    <value>$MASTER_HOSTNAME</value>" /vagrant/hadoop-config/yarn-site.xml
 else
-    umount /share >& /dev/null && sleep 1
+    umount /share >& /dev/null && sleep 2
     if ! grep -Fq /share /etc/fstab ; then
         echo -e "$MASTER_HOSTNAME:/share        /share     nfs    auto,relatime,tcp       0       0" >> /etc/fstab
     fi
