@@ -1,6 +1,6 @@
 <configuration>
   <property>
     <name>fs.defaultFS</name>
-    <value>hdfs://xxx-master:9000</value>
+    <value>hdfs://X-master:Y</value>
   </property>
 </configuration>
