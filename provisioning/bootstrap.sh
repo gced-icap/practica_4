@@ -60,7 +60,8 @@ if ! grep -Fq /dev/sdc /etc/fstab ; then
 fi
 
 # Install software
-apt-get update -y -qq
+apt-get clean all
+apt-get update
 SOFTWARE="nano sshpass unzip python-apt-common fdisk dnsutils dos2unix whois nfs-common openjdk-11-jdk"
 echo "==> Installing software packages..."
 if ! apt-get install -y -qq $SOFTWARE > /tmp/apt.log 2>&1; then
