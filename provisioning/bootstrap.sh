@@ -12,6 +12,8 @@ MASTER_HOSTNAME=$2
 WORKER_HOSTNAME=$3
 NUM_WORKERS=$4
 
+export DEBIAN_FRONTEND=noninteractive
+
 # Format and mount disks to be used with Hadoop HDFS
 if [ ! -d "/data/disk0" ]; then
     mkdir -p /data/disk0
