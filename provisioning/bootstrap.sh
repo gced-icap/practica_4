@@ -12,8 +12,6 @@ MASTER_HOSTNAME=$2
 WORKER_HOSTNAME=$3
 NUM_WORKERS=$4
 
-export DEBIAN_FRONTEND=noninteractive
-
 # Format and mount disks to be used with Hadoop HDFS
 if [ ! -d "/data/disk0" ]; then
     mkdir -p /data/disk0
@@ -61,10 +59,10 @@ if ! grep -Fq /dev/sdc /etc/fstab ; then
     echo -e "/dev/sdc        /data/disk1     ext4    defaults,relatime       0       0" >> /etc/fstab
 fi
 
-# Install software
+# Install basic software
 apt-get clean all
 apt-get update
-SOFTWARE="nano sshpass unzip python-apt-common fdisk dnsutils dos2unix whois nfs-common openjdk-11-jdk"
+SOFTWARE="vim nano openssh-server sshpass unzip dnsutils python-apt-common fdisk dnsutils dos2unix whois nfs-common openjdk-21-jdk"
 echo "==> Installing software packages..."
 if ! apt-get install -y -qq $SOFTWARE > /tmp/apt.log 2>&1; then
     echo "Error when installing software, log:"
@@ -82,6 +80,7 @@ echo 'vagrant:vagrant' | chpasswd -m
 # Populate /etc/hosts
 sed -i "/$HOSTNAME/d" /etc/hosts
 sed -i "/master/d" /etc/hosts
+sed -i "/${WORKER_HOSTNAME}[0-9]\+/d" /etc/hosts
 echo -e "$MASTER_IP \t $MASTER_HOSTNAME" >> /etc/hosts
 
 IP_PREFIX=$(echo "$MASTER_IP" | cut -d. -f1-3)
@@ -103,24 +102,27 @@ sed -i "/sbin/d" /home/vagrant/.profile
 echo 'PATH=/sbin:$PATH' >> /home/vagrant/.profile
 
 if ! grep -Fq WORDCOUNT /home/vagrant/.profile ; then
-	echo "export WORDCOUNT=/share/hadoop-3.4.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.2.jar" >> /home/vagrant/.profile
+	echo "export WORDCOUNT=/share/hadoop-3.5.0/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.5.0.jar" >> /home/vagrant/.profile
 fi
 
 if ! grep -Fq JAVA_HOME /home/vagrant/.profile ; then
-    echo "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> /home/vagrant/.profile
+    echo "export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> /home/vagrant/.profile
 fi
 
-if [ "$(hostname)" = "$MASTER_HOSTNAME" ]; then
+if [[ "$(hostname)" = "$MASTER_HOSTNAME" ]]; then
+    SCRIPT=/home/vagrant/fileGen.sh
     echo "Downloading fileGen.sh script..."
-    cd /home/vagrant
-    wget https://gac.udc.es/~rober/icap/fileGen.sh
-    if [ $? -ne 0 ]; then
+    wget -q -O $SCRIPT https://gac.udc.es/~rober/icap/fileGen.sh
+    if [[ $? -ne 0 ]]; then
         echo "Error: download failed!"
-        exit -1
+        exit 1
     fi
-    chmod +x fileGen.sh
-    chown vagrant:vagrant fileGen.sh
-    echo 'echo "$number characters" >> $path/$filename' >> fileGen.sh
+    if [[ ! -f $SCRIPT ]]; then
+        echo "Error: script not found!"
+        exit 1
+    fi
+    chmod +x $SCRIPT
+    chown vagrant:vagrant $SCRIPT
 fi
 
 # NFS and SSH keys setup
@@ -151,7 +153,7 @@ if [ "$(hostname)" = "$MASTER_HOSTNAME" ]; then
 
 	if [ ! -f $SSH_DIR/id_rsa.pub ]; then
 		echo "SSH public key could not be created"
-		exit -1
+		exit 1
 	fi
     fi
 
